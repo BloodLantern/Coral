@@ -424,6 +424,78 @@ internal static class TypeInterface
 	}
 
 	[UnmanagedCallersOnly]
+	private static unsafe void GetTypeMethod(int InType, NativeString InName, int* InMethod)
+	{
+		try
+		{
+			if (!s_CachedTypes.TryGetValue(InType, out var type))
+				return;
+
+			MethodInfo method = type.GetMethod(InName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+
+			if (method == null)
+				return;
+
+			if (InMethod == null)
+				return;
+
+			*InMethod = s_CachedMethods.Add(method);
+		}
+		catch (Exception e)
+		{
+			HandleException(e);
+		}
+	}
+
+	[UnmanagedCallersOnly]
+	private static unsafe void GetTypeField(int InType, NativeString InName, int* InField)
+	{
+		try
+		{
+			if (!s_CachedTypes.TryGetValue(InType, out var type))
+				return;
+
+			FieldInfo field = type.GetField(InName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+
+			if (field == null)
+				return;
+
+			if (InField == null)
+				return;
+
+			*InField = s_CachedFields.Add(field);
+		}
+		catch (Exception e)
+		{
+			HandleException(e);
+		}
+	}
+
+	[UnmanagedCallersOnly]
+	private static unsafe void GetTypeProperty(int InType, NativeString InName, int* InProperty)
+	{
+		try
+		{
+			if (!s_CachedTypes.TryGetValue(InType, out var type))
+				return;
+
+			PropertyInfo property = type.GetProperty(InName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+
+			if (property == null)
+				return;
+
+			if (InProperty == null)
+				return;
+
+			*InProperty = s_CachedProperties.Add(property);
+		}
+		catch (Exception e)
+		{
+			HandleException(e);
+		}
+	}
+
+	[UnmanagedCallersOnly]
 	private static unsafe Bool32 HasTypeAttribute(int InType, int InAttributeType)
 	{
 		try

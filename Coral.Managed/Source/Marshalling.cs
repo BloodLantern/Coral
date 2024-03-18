@@ -50,6 +50,15 @@ public static class Marshalling
 				}
 			}
 		}
+		else if (InValue is HandleRef handleRef)
+		{
+			unsafe
+			{
+				var size = Marshal.SizeOf(OutValue);
+				var ptr = handleRef.Handle;
+				Buffer.MemoryCopy(&ptr, OutValue.ToPointer(), size, size);
+			}
+		}
 		else
 		{
 			var valueSize = Marshal.SizeOf(InType);

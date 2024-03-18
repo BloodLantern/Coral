@@ -35,6 +35,9 @@ namespace Coral {
 	using GetTypeMethodsFn = void(*)(TypeId, ManagedHandle*, int32_t*);
 	using GetTypeFieldsFn = void(*)(TypeId, ManagedHandle*, int32_t*);
 	using GetTypePropertiesFn = void(*)(TypeId, ManagedHandle*, int32_t*);
+	using GetTypeMethodFn = void(*)(TypeId, String, ManagedHandle*);
+	using GetTypeFieldFn = void(*)(TypeId, String, ManagedHandle*);
+	using GetTypePropertyFn = void(*)(TypeId, String, ManagedHandle*);
 	using HasTypeAttributeFn = Bool32(*)(TypeId, TypeId);
 	using GetTypeAttributesFn = void (*)(ManagedHandle, TypeId*, int32_t*);
 	using GetTypeManagedTypeFn = ManagedType(*)(TypeId);
@@ -105,6 +108,9 @@ namespace Coral {
 		GetTypeMethodsFn GetTypeMethodsFptr = nullptr;
 		GetTypeFieldsFn GetTypeFieldsFptr = nullptr;
 		GetTypePropertiesFn GetTypePropertiesFptr = nullptr;
+		GetTypeMethodFn GetTypeMethodFptr = nullptr;
+		GetTypeFieldFn GetTypeFieldFptr = nullptr;
+		GetTypePropertyFn GetTypePropertyFptr = nullptr;
 		HasTypeAttributeFn HasTypeAttributeFptr = nullptr;
 		GetTypeAttributesFn GetTypeAttributesFptr = nullptr;
 		GetTypeManagedTypeFn GetTypeManagedTypeFptr = nullptr;

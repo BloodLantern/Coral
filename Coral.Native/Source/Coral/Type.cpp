@@ -89,6 +89,45 @@ namespace Coral {
 		return properties;
 	}
 
+	MethodInfo Type::GetMethod(std::string_view InName) const
+	{
+		String name = String::New(InName);
+		ManagedHandle handle;
+		s_ManagedFunctions.GetTypeMethodFptr(m_Id, name, &handle);
+		String::Free(name);
+
+		MethodInfo result;
+		result.m_Handle = handle;
+
+		return result;
+	}
+	
+	FieldInfo Type::GetField(std::string_view InName) const
+	{
+		String name = String::New(InName);
+		ManagedHandle handle;
+		s_ManagedFunctions.GetTypeFieldFptr(m_Id, name, &handle);
+		String::Free(name);
+
+		FieldInfo result;
+		result.m_Handle = handle;
+
+		return result;
+	}
+	
+	PropertyInfo Type::GetProperty(std::string_view InName) const
+	{
+		String name = String::New(InName);
+		ManagedHandle handle;
+		s_ManagedFunctions.GetTypePropertyFptr(m_Id, name, &handle);
+		String::Free(name);
+
+		PropertyInfo result;
+		result.m_Handle = handle;
+
+		return result;
+	}
+
 	bool Type::HasAttribute(const Type& InAttributeType) const
 	{
 		return s_ManagedFunctions.HasTypeAttributeFptr(m_Id, InAttributeType.m_Id);

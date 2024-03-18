@@ -324,12 +324,23 @@ internal static class ManagedObject
 				return;
 			}
 
-			var targetType = target.GetType();
-			var fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+			FieldInfo? fieldInfo = null;
+			
+			var baseTargetType = target.GetType();
+			var targetType = baseTargetType;
+			while (targetType != null)
+			{
+				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (fieldInfo != null)
+					break;
+
+				targetType = targetType.BaseType;
+			}
 
 			if (fieldInfo == null)
 			{
-				LogMessage($"Failed to find field '{InFieldName}' in type '{targetType.FullName}'.", MessageLevel.Error);
+				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
 				return;
 			}
 
@@ -355,12 +366,23 @@ internal static class ManagedObject
 				return;
 			}
 
-			var targetType = target.GetType();
-			var fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+			FieldInfo? fieldInfo = null;
+			
+			var baseTargetType = target.GetType();
+			var targetType = baseTargetType;
+			while (targetType != null)
+			{
+				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (fieldInfo != null)
+					break;
+
+				targetType = targetType.BaseType;
+			}
 
 			if (fieldInfo == null)
 			{
-				LogMessage($"Failed to find field '{InFieldName}' in type '{targetType.FullName}'.", MessageLevel.Error);
+				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
 				return;
 			}
 
@@ -385,12 +407,23 @@ internal static class ManagedObject
 				return;
 			}
 
-			var targetType = target.GetType();
-			var propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+			PropertyInfo? propertyInfo = null;
+
+			var baseTargetType = target.GetType();
+			var targetType = baseTargetType;
+			while (targetType != null)
+			{
+				propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (propertyInfo != null)
+					break;
+
+				targetType = targetType.BaseType;
+			}
 		
 			if (propertyInfo == null)
 			{
-				LogMessage($"Failed to find property '{InPropertyName}' in type '{targetType.FullName}'", MessageLevel.Error);
+				LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'", MessageLevel.Error);
 				return;
 			}
 
@@ -422,12 +455,23 @@ internal static class ManagedObject
 				return;
 			}
 
-			var targetType = target.GetType();
-			var propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+			PropertyInfo? propertyInfo = null;
+
+			var baseTargetType = target.GetType();
+			var targetType = baseTargetType;
+			while (targetType != null)
+			{
+				propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (propertyInfo != null)
+					break;
+
+				targetType = targetType.BaseType;
+			}
 
 			if (propertyInfo == null)
 			{
-				LogMessage($"Failed to find property '{InPropertyName}' in type '{targetType.FullName}'.", MessageLevel.Error);
+				LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
 				return;
 			}
 
