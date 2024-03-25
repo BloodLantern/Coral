@@ -3,6 +3,8 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Coral.Managed;
@@ -14,6 +16,21 @@ public static class Marshalling
 		public IntPtr Data;
 		public int Length;
 	};
+
+	public static void MarshalFieldAddress(object? InObject, FieldInfo? InFieldInfo, IntPtr OutValue)
+	{
+		if (InObject == null || InFieldInfo == null)
+			return;
+		
+		var ptr = Unsafe.As<object, nint>(ref InObject) + GetFieldOffset(InFieldInfo);
+		if (!InObject.GetType().IsValueType)
+			ptr += IntPtr.Size;
+		Marshal.WriteIntPtr(OutValue, ptr);
+	}
+
+	private static int GetFieldOffset(this FieldInfo fi) => GetFieldOffset(fi.FieldHandle);
+
+	private static int GetFieldOffset(RuntimeFieldHandle h) => Marshal.ReadInt32(h.Value + (4 + IntPtr.Size)) & 0xFFFFFF;
 
 	public static void MarshalReturnValue(object? InValue, Type? InType, IntPtr OutValue)
 	{

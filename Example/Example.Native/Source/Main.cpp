@@ -112,6 +112,14 @@ int main(int argc, char** argv)
 	// Get the value of myPrivateValue as an int
 	std::cout << exampleInstance.GetFieldValue<int32_t>("myPrivateValue") << std::endl;
 
+	auto myPrivateValuePtr = exampleInstance.GetFieldPointer<int32_t>("myPrivateValue");
+
+	std::cout << *myPrivateValuePtr << std::endl;
+
+	*myPrivateValuePtr = 20;
+
+	std::cout << *myPrivateValuePtr << std::endl;
+
 	// Invokes StringDemo method which will in turn invoke PrintStringIcall with a string parameter
 	exampleInstance.InvokeMethod("StringDemo");
 

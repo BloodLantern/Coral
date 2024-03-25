@@ -395,6 +395,47 @@ internal static class ManagedObject
 	}
 
 	[UnmanagedCallersOnly]
+	private static void GetFieldPointer(IntPtr InTarget, NativeString InFieldName, IntPtr OutPointer)
+	{
+		try
+		{
+			var target = GCHandle.FromIntPtr(InTarget).Target;
+
+			if (target == null)
+			{
+				LogMessage($"Cannot get pointer to field {InFieldName} from object with handle {InTarget}. Target was null.", MessageLevel.Error);
+				return;
+			}
+
+			FieldInfo? fieldInfo = null;
+			
+			var baseTargetType = target.GetType();
+			var targetType = baseTargetType;
+			while (targetType != null)
+			{
+				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+				if (fieldInfo != null)
+					break;
+
+				targetType = targetType.BaseType;
+			}
+
+			if (fieldInfo == null)
+			{
+				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
+				return;
+			}
+
+			Marshalling.MarshalFieldAddress(target, fieldInfo, OutPointer);
+		}
+		catch (Exception ex)
+		{
+			HandleException(ex);
+		}
+	}
+
+	[UnmanagedCallersOnly]
 	private static void SetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr InValue)
 	{
 		try

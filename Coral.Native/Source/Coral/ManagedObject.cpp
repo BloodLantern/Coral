@@ -39,6 +39,13 @@ namespace Coral {
 		String::Free(fieldName);
 	}
 
+	void ManagedObject::GetFieldPointerRaw(std::string_view InFieldName, void** OutPointer) const
+	{
+		auto fieldName = String::New(InFieldName);
+		s_ManagedFunctions.GetFieldPointerFptr(m_Handle, fieldName, OutPointer);
+		String::Free(fieldName);
+	}
+
 	void ManagedObject::SetPropertyValueRaw(std::string_view InPropertyName, void* InValue) const
 	{
 		auto propertyName = String::New(InPropertyName);
