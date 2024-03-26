@@ -10,6 +10,13 @@ namespace Example.Managed {
 		public float Value;
 	}
 
+	public struct ExampleStruct(int value)
+	{
+		private int myPrivateValue = value;
+
+		public void Print() => Console.WriteLine($"ExampleStruct value: {myPrivateValue}");
+	}
+
 	[Custom(Value = -2500.0f)]
 	public class ExampleClass
 	{

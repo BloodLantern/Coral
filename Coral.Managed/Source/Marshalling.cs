@@ -22,9 +22,7 @@ public static class Marshalling
 		if (InObject == null || InFieldInfo == null)
 			return;
 		
-		var ptr = Unsafe.As<object, nint>(ref InObject) + GetFieldOffset(InFieldInfo);
-		if (!InObject.GetType().IsValueType)
-			ptr += IntPtr.Size;
+		var ptr = Unsafe.As<object, nint>(ref InObject) + IntPtr.Size + GetFieldOffset(InFieldInfo);
 		Marshal.WriteIntPtr(OutValue, ptr);
 	}
 

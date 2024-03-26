@@ -112,6 +112,8 @@ int main(int argc, char** argv)
 	// Get the value of myPrivateValue as an int
 	std::cout << exampleInstance.GetFieldValue<int32_t>("myPrivateValue") << std::endl;
 
+	std::cout << "Class member pointer\n";
+
 	auto myPrivateValuePtr = exampleInstance.GetFieldPointer<int32_t>("myPrivateValue");
 
 	std::cout << *myPrivateValuePtr << std::endl;
@@ -119,6 +121,21 @@ int main(int argc, char** argv)
 	*myPrivateValuePtr = 20;
 
 	std::cout << *myPrivateValuePtr << std::endl;
+	
+	auto exampleStructInstance = assembly.GetType("Example.Managed.ExampleStruct").CreateInstance(20);
+
+	std::cout << "Struct member pointer\n";
+
+	// Get the value of myPrivateValue as an int
+	std::cout << exampleStructInstance.GetFieldValue<int32_t>("myPrivateValue") << std::endl;
+
+	auto myPrivateValueStructPtr = exampleStructInstance.GetFieldPointer<int32_t>("myPrivateValue");
+
+	std::cout << *myPrivateValueStructPtr << std::endl;
+
+	*myPrivateValueStructPtr = 10;
+
+	std::cout << *myPrivateValueStructPtr << std::endl;
 
 	// Invokes StringDemo method which will in turn invoke PrintStringIcall with a string parameter
 	exampleInstance.InvokeMethod("StringDemo");
