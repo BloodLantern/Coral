@@ -7,526 +7,529 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace Coral.Managed;
-
-using static ManagedHost;
-
-internal enum ManagedType
-{
-	Unknown,
-
-	SByte,
-	Byte,
-	Short,
-	UShort,
-	Int,
-	UInt,
-	Long,
-	ULong,
-
-	Float,
-	Double,
-
-	Bool,
-
-	Pointer
-};
-
-internal static class ManagedObject
+namespace Coral.Managed
 {
 
-	public readonly struct MethodKey : IEquatable<MethodKey>
+	using static ManagedHost;
+
+	internal enum ManagedType
 	{
-		public readonly string TypeName;
-		public readonly string Name;
-		public readonly ManagedType[] Types;
-		public readonly int ParameterCount;
+		Unknown,
 
-		public MethodKey(string InTypeName, string InName, ManagedType[] InTypes, int InParameterCount)
+		SByte,
+		Byte,
+		Short,
+		UShort,
+		Int,
+		UInt,
+		Long,
+		ULong,
+
+		Float,
+		Double,
+
+		Bool,
+
+		Pointer
+	};
+
+	internal static class ManagedObject
+	{
+
+		public readonly struct MethodKey : IEquatable<MethodKey>
 		{
-			TypeName = InTypeName;
-			Name = InName;
-			Types = InTypes;
-			ParameterCount = InParameterCount;
-		}
+			public readonly string TypeName;
+			public readonly string Name;
+			public readonly ManagedType[] Types;
+			public readonly int ParameterCount;
 
-		public override bool Equals([NotNullWhen(true)] object? obj) => obj is MethodKey other && Equals(other);
-
-		bool IEquatable<MethodKey>.Equals(MethodKey other)
-		{
-			if (TypeName != other.TypeName || Name != other.Name)
-				return false;
-
-			for (int i = 0; i < Types.Length; i++)
+			public MethodKey(string InTypeName, string InName, ManagedType[] InTypes, int InParameterCount)
 			{
-				if (Types[i] != other.Types[i])
+				TypeName = InTypeName;
+				Name = InName;
+				Types = InTypes;
+				ParameterCount = InParameterCount;
+			}
+
+			public override bool Equals([NotNullWhen(true)] object? obj) => obj is MethodKey other && Equals(other);
+
+			bool IEquatable<MethodKey>.Equals(MethodKey other)
+			{
+				if (TypeName != other.TypeName || Name != other.Name)
 					return false;
+
+				for (int i = 0; i < Types.Length; i++)
+				{
+					if (Types[i] != other.Types[i])
+						return false;
+				}
+
+				return ParameterCount == other.ParameterCount;
 			}
 
-			return ParameterCount == other.ParameterCount;
+			public override int GetHashCode()
+			{
+				// NOTE(Peter): Josh Bloch's Hash (from https://stackoverflow.com/questions/263400/what-is-the-best-algorithm-for-overriding-gethashcode)
+				unchecked
+				{
+					int hash = 17;
+
+					hash = hash * 23 + TypeName.GetHashCode();
+					hash = hash * 23 + Name.GetHashCode();
+					foreach (var type in Types)
+						hash = hash * 23 + type.GetHashCode();
+					hash = hash * 23 + ParameterCount.GetHashCode();
+
+					return hash;
+				}
+			}
 		}
 
-		public override int GetHashCode()
+		internal static Dictionary<MethodKey, MethodInfo> s_CachedMethods = new Dictionary<MethodKey, MethodInfo>();
+
+		[UnmanagedCallersOnly]
+		private static unsafe IntPtr CreateObject(int InTypeID, Bool32 InWeakRef, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
 		{
-			// NOTE(Peter): Josh Bloch's Hash (from https://stackoverflow.com/questions/263400/what-is-the-best-algorithm-for-overriding-gethashcode)
-			unchecked
+			try
 			{
-				int hash = 17;
+				if (!TypeInterface.s_CachedTypes.TryGetValue(InTypeID, out var type))
+				{
+					LogMessage($"Failed to find type with id '{InTypeID}'.", MessageLevel.Error);
+					return IntPtr.Zero;
+				}
 
-				hash = hash * 23 + TypeName.GetHashCode();
-				hash = hash * 23 + Name.GetHashCode();
-				foreach (var type in Types)
-					hash = hash * 23 + type.GetHashCode();
-				hash = hash * 23 + ParameterCount.GetHashCode();
+				ConstructorInfo? constructor = null;
 
-				return hash;
-			}
-		}
-	}
-
-	internal static Dictionary<MethodKey, MethodInfo> s_CachedMethods = new Dictionary<MethodKey, MethodInfo>();
-
-	[UnmanagedCallersOnly]
-	private static unsafe IntPtr CreateObject(int InTypeID, Bool32 InWeakRef, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
-	{
-		try
-		{
-			if (!TypeInterface.s_CachedTypes.TryGetValue(InTypeID, out var type))
-			{
-				LogMessage($"Failed to find type with id '{InTypeID}'.", MessageLevel.Error);
-				return IntPtr.Zero;
-			}
-
-			ConstructorInfo? constructor = null;
-
-			var currentType = type;
-			while (currentType != null)
-			{
-				ReadOnlySpan<ConstructorInfo> constructors = currentType.GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+				var currentType = type;
+				while (currentType != null)
+				{
+					ReadOnlySpan<ConstructorInfo> constructors = currentType.GetConstructors(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
 				
-				constructor = TypeInterface.FindSuitableMethod(".ctor", InParameterTypes, InParameterCount, constructors);
+					constructor = TypeInterface.FindSuitableMethod(".ctor", InParameterTypes, InParameterCount, constructors);
 
-				if (constructor != null)
-					break;
+					if (constructor != null)
+						break;
 
-				currentType = currentType.BaseType;
+					currentType = currentType.BaseType;
+				}
+
+				if (constructor == null)
+				{
+					LogMessage($"Failed to find constructor for type {type.FullName} with {InParameterCount} parameters.", MessageLevel.Error);
+					return IntPtr.Zero;
+				}
+
+				var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, constructor);
+
+				object? result = null;
+
+				if (currentType != type || parameters == null)
+				{
+					result = TypeInterface.CreateInstance(type);
+
+					if (currentType != type)
+						constructor.Invoke(result, parameters);
+				}
+				else
+				{
+					result = TypeInterface.CreateInstance(type, parameters);
+				}
+
+				if (result == null)
+				{
+					LogMessage($"Failed to instantiate type {type.FullName}.", MessageLevel.Error);
+				}
+
+				var handle = GCHandle.Alloc(result, InWeakRef ? GCHandleType.Weak : GCHandleType.Normal);
+				AssemblyLoader.RegisterHandle(type.Assembly, handle);
+				return GCHandle.ToIntPtr(handle);
 			}
-
-			if (constructor == null)
+			catch (Exception ex)
 			{
-				LogMessage($"Failed to find constructor for type {type.FullName} with {InParameterCount} parameters.", MessageLevel.Error);
+				HandleException(ex);
 				return IntPtr.Zero;
 			}
+		}
 
-			var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, constructor);
-
-			object? result = null;
-
-			if (currentType != type || parameters == null)
+		[UnmanagedCallersOnly]
+		public static void DestroyObject(IntPtr InObjectHandle)
+		{
+			try
 			{
-				result = TypeInterface.CreateInstance(type);
-
-				if (currentType != type)
-					constructor.Invoke(result, parameters);
+				GCHandle.FromIntPtr(InObjectHandle).Free();
 			}
-			else
+			catch (Exception ex)
 			{
-				result = TypeInterface.CreateInstance(type, parameters);
-			}
-
-			if (result == null)
-			{
-				LogMessage($"Failed to instantiate type {type.FullName}.", MessageLevel.Error);
-			}
-
-			var handle = GCHandle.Alloc(result, InWeakRef ? GCHandleType.Weak : GCHandleType.Normal);
-			AssemblyLoader.RegisterHandle(type.Assembly, handle);
-			return GCHandle.ToIntPtr(handle);
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-			return IntPtr.Zero;
-		}
-	}
-
-	[UnmanagedCallersOnly]
-	public static void DestroyObject(IntPtr InObjectHandle)
-	{
-		try
-		{
-			GCHandle.FromIntPtr(InObjectHandle).Free();
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
-
-	private static unsafe MethodInfo? TryGetMethodInfo(Type InType, string InMethodName, ManagedType* InParameterTypes, int InParameterCount, BindingFlags InBindingFlags)
-	{
-		MethodInfo? methodInfo = null;
-
-		var parameterTypes = new ManagedType[InParameterCount];
-
-		unsafe
-		{
-			fixed (ManagedType* parameterTypesPtr = parameterTypes)
-			{
-				ulong size = sizeof(ManagedType) * (ulong)InParameterCount;
-				Buffer.MemoryCopy(InParameterTypes, parameterTypesPtr, size, size);
+				HandleException(ex);
 			}
 		}
 
-		var methodKey = new MethodKey(InType.FullName, InMethodName, parameterTypes, InParameterCount);
-
-		if (!s_CachedMethods.TryGetValue(methodKey, out methodInfo))
+		private static unsafe MethodInfo? TryGetMethodInfo(Type InType, string InMethodName, ManagedType* InParameterTypes, int InParameterCount, BindingFlags InBindingFlags)
 		{
-			List<MethodInfo> methods = new(InType.GetMethods(InBindingFlags));
+			MethodInfo? methodInfo = null;
 
-			Type? baseType = InType.BaseType;
-			while (baseType != null)
+			var parameterTypes = new ManagedType[InParameterCount];
+
+			unsafe
 			{
-				methods.AddRange(baseType.GetMethods(InBindingFlags));
-				baseType = baseType.BaseType;
+				fixed (ManagedType* parameterTypesPtr = parameterTypes)
+				{
+					ulong size = sizeof(ManagedType) * (ulong)InParameterCount;
+					Buffer.MemoryCopy(InParameterTypes, parameterTypesPtr, size, size);
+				}
 			}
 
-			methodInfo = TypeInterface.FindSuitableMethod<MethodInfo>(InMethodName, InParameterTypes, InParameterCount, CollectionsMarshal.AsSpan(methods));
+			var methodKey = new MethodKey(InType.FullName, InMethodName, parameterTypes, InParameterCount);
 
-			if (methodInfo == null)
+			if (!s_CachedMethods.TryGetValue(methodKey, out methodInfo))
 			{
-				LogMessage($"Failed to find method '{InMethodName}' for type {InType.FullName} with {InParameterCount} parameters.", MessageLevel.Error);
-				return null;
+				List<MethodInfo> methods = new(InType.GetMethods(InBindingFlags));
+
+				Type? baseType = InType.BaseType;
+				while (baseType != null)
+				{
+					methods.AddRange(baseType.GetMethods(InBindingFlags));
+					baseType = baseType.BaseType;
+				}
+
+				methodInfo = TypeInterface.FindSuitableMethod<MethodInfo>(InMethodName, InParameterTypes, InParameterCount, CollectionsMarshal.AsSpan(methods));
+
+				if (methodInfo == null)
+				{
+					LogMessage($"Failed to find method '{InMethodName}' for type {InType.FullName} with {InParameterCount} parameters.", MessageLevel.Error);
+					return null;
+				}
+
+				s_CachedMethods.Add(methodKey, methodInfo);
 			}
 
-			s_CachedMethods.Add(methodKey, methodInfo);
+			return methodInfo;
 		}
 
-		return methodInfo;
-	}
-
-	[UnmanagedCallersOnly]
-	private static unsafe void InvokeStaticMethod(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
-	{
-		try
+		[UnmanagedCallersOnly]
+		private static unsafe void InvokeStaticMethod(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
 		{
-			if (!TypeInterface.s_CachedTypes.TryGetValue(InType, out var type))
+			try
 			{
-				LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
-				return;
+				if (!TypeInterface.s_CachedTypes.TryGetValue(InType, out var type))
+				{
+					LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
+					return;
+				}
+
+				var methodInfo = TryGetMethodInfo(type, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+				var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
+
+				methodInfo.Invoke(null, parameters);
 			}
-
-			var methodInfo = TryGetMethodInfo(type, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-			var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
-
-			methodInfo.Invoke(null, parameters);
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
-
-	[UnmanagedCallersOnly]
-	private static unsafe void InvokeStaticMethodRet(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
-	{
-		try
-		{
-			if (!TypeInterface.s_CachedTypes.TryGetValue(InType, out var type))
+			catch (Exception ex)
 			{
-				LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
-				return;
+				HandleException(ex);
 			}
-
-			var methodInfo = TryGetMethodInfo(type, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-			var methodParameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
-
-			object? value = methodInfo.Invoke(null, methodParameters);
-
-			if (value == null)
-				return;
-
-			Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
 		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
 
-	[UnmanagedCallersOnly]
-	private static unsafe void InvokeMethod(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
-	{
-		try
+		[UnmanagedCallersOnly]
+		private static unsafe void InvokeStaticMethodRet(int InType, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
 		{
-			var target = GCHandle.FromIntPtr(InObjectHandle).Target;
-
-			if (target == null)
+			try
 			{
-				LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
-				return;
+				if (!TypeInterface.s_CachedTypes.TryGetValue(InType, out var type))
+				{
+					LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
+					return;
+				}
+
+				var methodInfo = TryGetMethodInfo(type, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+				var methodParameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
+
+				object? value = methodInfo.Invoke(null, methodParameters);
+
+				if (value == null)
+					return;
+
+				Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
 			}
-
-			var targetType = target.GetType();
-
-			var methodInfo = TryGetMethodInfo(targetType, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-			var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
-
-			methodInfo.Invoke(target, parameters);
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
-
-	[UnmanagedCallersOnly]
-	private static unsafe void InvokeMethodRet(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
-	{
-		try
-		{
-			var target = GCHandle.FromIntPtr(InObjectHandle).Target;
-
-			if (target == null)
+			catch (Exception ex)
 			{
-				LogMessage($"Cannot invoke method {InMethodName} on object with handle {InObjectHandle}. Target was null.", MessageLevel.Error);
-				return;
+				HandleException(ex);
 			}
+		}
 
-			var targetType = target.GetType();
+		[UnmanagedCallersOnly]
+		private static unsafe void InvokeMethod(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount)
+		{
+			try
+			{
+				var target = GCHandle.FromIntPtr(InObjectHandle).Target;
 
-			var methodInfo = TryGetMethodInfo(targetType, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-			var methodParameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
+				if (target == null)
+				{
+					LogMessage($"Cannot invoke method {InMethodName} on a null type.", MessageLevel.Error);
+					return;
+				}
+
+				var targetType = target.GetType();
+
+				var methodInfo = TryGetMethodInfo(targetType, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var parameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
+
+				methodInfo.Invoke(target, parameters);
+			}
+			catch (Exception ex)
+			{
+				HandleException(ex);
+			}
+		}
+
+		[UnmanagedCallersOnly]
+		private static unsafe void InvokeMethodRet(IntPtr InObjectHandle, NativeString InMethodName, IntPtr InParameters, ManagedType* InParameterTypes, int InParameterCount, IntPtr InResultStorage)
+		{
+			try
+			{
+				var target = GCHandle.FromIntPtr(InObjectHandle).Target;
+
+				if (target == null)
+				{
+					LogMessage($"Cannot invoke method {InMethodName} on object with handle {InObjectHandle}. Target was null.", MessageLevel.Error);
+					return;
+				}
+
+				var targetType = target.GetType();
+
+				var methodInfo = TryGetMethodInfo(targetType, InMethodName, InParameterTypes, InParameterCount, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var methodParameters = Marshalling.MarshalParameterArray(InParameters, InParameterCount, methodInfo);
 			
-			object? value = methodInfo.Invoke(target, methodParameters);
+				object? value = methodInfo.Invoke(target, methodParameters);
 
-			if (value == null)
-				return;
+				if (value == null)
+					return;
 
-			Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
-
-	[UnmanagedCallersOnly]
-	private static void SetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr InValue)
-	{
-		try
-		{
-			var target = GCHandle.FromIntPtr(InTarget).Target;
-
-			if (target == null)
-			{
-				LogMessage($"Cannot set value of field {InFieldName} on object with handle {InTarget}. Target was null.", MessageLevel.Error);
-				return;
+				Marshalling.MarshalReturnValue(value, methodInfo.ReturnType, InResultStorage);
 			}
+			catch (Exception ex)
+			{
+				HandleException(ex);
+			}
+		}
 
-			FieldInfo? fieldInfo = null;
+		[UnmanagedCallersOnly]
+		private static void SetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr InValue)
+		{
+			try
+			{
+				var target = GCHandle.FromIntPtr(InTarget).Target;
+
+				if (target == null)
+				{
+					LogMessage($"Cannot set value of field {InFieldName} on object with handle {InTarget}. Target was null.", MessageLevel.Error);
+					return;
+				}
+
+				FieldInfo? fieldInfo = null;
 			
-			var baseTargetType = target.GetType();
-			var targetType = baseTargetType;
-			while (targetType != null)
-			{
-				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var baseTargetType = target.GetType();
+				var targetType = baseTargetType;
+				while (targetType != null)
+				{
+					fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-				if (fieldInfo != null)
-					break;
+					if (fieldInfo != null)
+						break;
 
-				targetType = targetType.BaseType;
+					targetType = targetType.BaseType;
+				}
+
+				if (fieldInfo == null)
+				{
+					LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
+					return;
+				}
+
+				object? value = Marshalling.MarshalPointer(InValue, fieldInfo.FieldType);
+				fieldInfo.SetValue(target, value);
 			}
-
-			if (fieldInfo == null)
+			catch (Exception ex)
 			{
-				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
-				return;
+				HandleException(ex);
 			}
-
-			object? value = Marshalling.MarshalPointer(InValue, fieldInfo.FieldType);
-			fieldInfo.SetValue(target, value);
 		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
 
-	[UnmanagedCallersOnly]
-	private static void GetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr OutValue)
-	{
-		try
+		[UnmanagedCallersOnly]
+		private static void GetFieldValue(IntPtr InTarget, NativeString InFieldName, IntPtr OutValue)
 		{
-			var target = GCHandle.FromIntPtr(InTarget).Target;
-
-			if (target == null)
+			try
 			{
-				LogMessage($"Cannot get value of field {InFieldName} from object with handle {InTarget}. Target was null.", MessageLevel.Error);
-				return;
-			}
+				var target = GCHandle.FromIntPtr(InTarget).Target;
 
-			FieldInfo? fieldInfo = null;
+				if (target == null)
+				{
+					LogMessage($"Cannot get value of field {InFieldName} from object with handle {InTarget}. Target was null.", MessageLevel.Error);
+					return;
+				}
+
+				FieldInfo? fieldInfo = null;
 			
-			var baseTargetType = target.GetType();
-			var targetType = baseTargetType;
-			while (targetType != null)
-			{
-				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var baseTargetType = target.GetType();
+				var targetType = baseTargetType;
+				while (targetType != null)
+				{
+					fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-				if (fieldInfo != null)
-					break;
+					if (fieldInfo != null)
+						break;
 
-				targetType = targetType.BaseType;
+					targetType = targetType.BaseType;
+				}
+
+				if (fieldInfo == null)
+				{
+					LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
+					return;
+				}
+
+				Marshalling.MarshalReturnValue(fieldInfo.GetValue(target), fieldInfo.FieldType, OutValue);
 			}
-
-			if (fieldInfo == null)
+			catch (Exception ex)
 			{
-				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
-				return;
+				HandleException(ex);
 			}
-
-			Marshalling.MarshalReturnValue(fieldInfo.GetValue(target), fieldInfo.FieldType, OutValue);
 		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
 
-	[UnmanagedCallersOnly]
-	private static void GetFieldPointer(IntPtr InTarget, NativeString InFieldName, IntPtr OutPointer)
-	{
-		try
+		[UnmanagedCallersOnly]
+		private static void GetFieldPointer(IntPtr InTarget, NativeString InFieldName, IntPtr OutPointer)
 		{
-			var target = GCHandle.FromIntPtr(InTarget).Target;
-
-			if (target == null)
+			try
 			{
-				LogMessage($"Cannot get pointer to field {InFieldName} from object with handle {InTarget}. Target was null.", MessageLevel.Error);
-				return;
-			}
+				var target = GCHandle.FromIntPtr(InTarget).Target;
 
-			FieldInfo? fieldInfo = null;
+				if (target == null)
+				{
+					LogMessage($"Cannot get pointer to field {InFieldName} from object with handle {InTarget}. Target was null.", MessageLevel.Error);
+					return;
+				}
+
+				FieldInfo? fieldInfo = null;
 			
-			var baseTargetType = target.GetType();
-			var targetType = baseTargetType;
-			while (targetType != null)
-			{
-				fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var baseTargetType = target.GetType();
+				var targetType = baseTargetType;
+				while (targetType != null)
+				{
+					fieldInfo = targetType.GetField(InFieldName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-				if (fieldInfo != null)
-					break;
+					if (fieldInfo != null)
+						break;
 
-				targetType = targetType.BaseType;
+					targetType = targetType.BaseType;
+				}
+
+				if (fieldInfo == null)
+				{
+					LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
+					return;
+				}
+
+				Marshalling.MarshalFieldAddress(target, fieldInfo, OutPointer);
 			}
-
-			if (fieldInfo == null)
+			catch (Exception ex)
 			{
-				LogMessage($"Failed to find field '{InFieldName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
-				return;
+				HandleException(ex);
 			}
-
-			Marshalling.MarshalFieldAddress(target, fieldInfo, OutPointer);
 		}
-		catch (Exception ex)
+
+		[UnmanagedCallersOnly]
+		private static void SetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr InValue)
 		{
-			HandleException(ex);
-		}
-	}
-
-	[UnmanagedCallersOnly]
-	private static void SetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr InValue)
-	{
-		try
-		{
-			var target = GCHandle.FromIntPtr(InTarget).Target;
-
-			if (target == null)
+			try
 			{
-				LogMessage($"Cannot set value of property {InPropertyName} on object with handle {InTarget}. Target was null.", MessageLevel.Error);
-				return;
-			}
+				var target = GCHandle.FromIntPtr(InTarget).Target;
 
-			PropertyInfo? propertyInfo = null;
+				if (target == null)
+				{
+					LogMessage($"Cannot set value of property {InPropertyName} on object with handle {InTarget}. Target was null.", MessageLevel.Error);
+					return;
+				}
 
-			var baseTargetType = target.GetType();
-			var targetType = baseTargetType;
-			while (targetType != null)
-			{
-				propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				PropertyInfo? propertyInfo = null;
 
-				if (propertyInfo != null)
-					break;
+				var baseTargetType = target.GetType();
+				var targetType = baseTargetType;
+				while (targetType != null)
+				{
+					propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-				targetType = targetType.BaseType;
-			}
+					if (propertyInfo != null)
+						break;
+
+					targetType = targetType.BaseType;
+				}
 		
-			if (propertyInfo == null)
-			{
-				LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'", MessageLevel.Error);
-				return;
-			}
+				if (propertyInfo == null)
+				{
+					LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'", MessageLevel.Error);
+					return;
+				}
 
-			if (propertyInfo.SetMethod == null)
-			{
-				LogMessage($"Cannot set value of property '{InPropertyName}'. No setter was found.", MessageLevel.Error);
-				return;
-			}
+				if (propertyInfo.SetMethod == null)
+				{
+					LogMessage($"Cannot set value of property '{InPropertyName}'. No setter was found.", MessageLevel.Error);
+					return;
+				}
 
-			object? value = Marshalling.MarshalPointer(InValue, propertyInfo.PropertyType);
-			propertyInfo.SetValue(target, value);
+				object? value = Marshalling.MarshalPointer(InValue, propertyInfo.PropertyType);
+				propertyInfo.SetValue(target, value);
+			}
+			catch (Exception ex)
+			{
+				HandleException(ex);
+			}
 		}
-		catch (Exception ex)
+
+		[UnmanagedCallersOnly]
+		private static void GetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr OutValue)
 		{
-			HandleException(ex);
+			try
+			{
+				var target = GCHandle.FromIntPtr(InTarget).Target;
+
+				if (target == null)
+				{
+					LogMessage($"Cannot get value of property '{InPropertyName}' from object with handle {InTarget}. Target was null.", MessageLevel.Error);
+					return;
+				}
+
+				PropertyInfo? propertyInfo = null;
+
+				var baseTargetType = target.GetType();
+				var targetType = baseTargetType;
+				while (targetType != null)
+				{
+					propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+					if (propertyInfo != null)
+						break;
+
+					targetType = targetType.BaseType;
+				}
+
+				if (propertyInfo == null)
+				{
+					LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
+					return;
+				}
+
+				if (propertyInfo.GetMethod == null)
+				{
+					LogMessage($"Cannot get value of property '{InPropertyName}'. No getter was found.", MessageLevel.Error);
+					return;
+				}
+
+				Marshalling.MarshalReturnValue(propertyInfo.GetValue(target), propertyInfo.PropertyType, OutValue);
+			}
+			catch (Exception ex)
+			{
+				HandleException(ex);
+			}
 		}
 	}
 
-	[UnmanagedCallersOnly]
-	private static void GetPropertyValue(IntPtr InTarget, NativeString InPropertyName, IntPtr OutValue)
-	{
-		try
-		{
-			var target = GCHandle.FromIntPtr(InTarget).Target;
-
-			if (target == null)
-			{
-				LogMessage($"Cannot get value of property '{InPropertyName}' from object with handle {InTarget}. Target was null.", MessageLevel.Error);
-				return;
-			}
-
-			PropertyInfo? propertyInfo = null;
-
-			var baseTargetType = target.GetType();
-			var targetType = baseTargetType;
-			while (targetType != null)
-			{
-				propertyInfo = targetType.GetProperty(InPropertyName!, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-				if (propertyInfo != null)
-					break;
-
-				targetType = targetType.BaseType;
-			}
-
-			if (propertyInfo == null)
-			{
-				LogMessage($"Failed to find property '{InPropertyName}' in type '{baseTargetType.FullName}'.", MessageLevel.Error);
-				return;
-			}
-
-			if (propertyInfo.GetMethod == null)
-			{
-				LogMessage($"Cannot get value of property '{InPropertyName}'. No getter was found.", MessageLevel.Error);
-				return;
-			}
-
-			Marshalling.MarshalReturnValue(propertyInfo.GetValue(target), propertyInfo.PropertyType, OutValue);
-		}
-		catch (Exception ex)
-		{
-			HandleException(ex);
-		}
-	}
 }

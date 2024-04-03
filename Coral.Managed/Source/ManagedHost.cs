@@ -3,42 +3,45 @@ using Coral.Managed.Interop;
 using System;
 using System.Runtime.InteropServices;
 
-namespace Coral.Managed;
-
-internal enum MessageLevel { Info = 1, Warning = 2, Error = 4 }
-
-internal static class ManagedHost
+namespace Coral.Managed
 {
-	private static unsafe delegate*<NativeString, void> s_ExceptionCallback;
 
-	private static unsafe delegate*<NativeString, MessageLevel, void> s_MessageCallback;
+	internal enum MessageLevel { Info = 1, Warning = 2, Error = 4 }
 
-	[UnmanagedCallersOnly]
-	private static unsafe void Initialize(delegate*<NativeString, MessageLevel, void> InMessageCallback, delegate*<NativeString, void> InExceptionCallback)
+	internal static class ManagedHost
 	{
-		s_MessageCallback = InMessageCallback;
-		s_ExceptionCallback = InExceptionCallback;
-	}
+		private static unsafe delegate*<NativeString, void> s_ExceptionCallback;
 
-	internal static void LogMessage(string InMessage, MessageLevel InLevel)
-	{
-		unsafe
+		private static unsafe delegate*<NativeString, MessageLevel, void> s_MessageCallback;
+
+		[UnmanagedCallersOnly]
+		private static unsafe void Initialize(delegate*<NativeString, MessageLevel, void> InMessageCallback, delegate*<NativeString, void> InExceptionCallback)
 		{
-			using NativeString message = InMessage;
-			s_MessageCallback(message, InLevel);
+			s_MessageCallback = InMessageCallback;
+			s_ExceptionCallback = InExceptionCallback;
 		}
-	}
 
-	internal static void HandleException(Exception InException)
-	{
-		unsafe
+		internal static void LogMessage(string InMessage, MessageLevel InLevel)
 		{
-			if (s_ExceptionCallback == null)
-				return;
-
-			using NativeString message = InException.ToString();
-			s_ExceptionCallback(message);
+			unsafe
+			{
+				using NativeString message = InMessage;
+				s_MessageCallback(message, InLevel);
+			}
 		}
+
+		internal static void HandleException(Exception InException)
+		{
+			unsafe
+			{
+				if (s_ExceptionCallback == null)
+					return;
+
+				using NativeString message = InException.ToString();
+				s_ExceptionCallback(message);
+			}
+		}
+
 	}
 
 }

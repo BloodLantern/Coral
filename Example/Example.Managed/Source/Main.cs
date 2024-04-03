@@ -10,9 +10,14 @@ namespace Example.Managed {
 		public float Value;
 	}
 
-	public struct ExampleStruct(int value)
+	public struct ExampleStruct
 	{
-		private int myPrivateValue = value;
+		private int myPrivateValue;
+
+		public ExampleStruct(int value)
+		{
+			myPrivateValue = value;
+		}
 
 		public void Print() => Console.WriteLine($"ExampleStruct value: {myPrivateValue}");
 	}

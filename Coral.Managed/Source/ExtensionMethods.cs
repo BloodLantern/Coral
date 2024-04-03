@@ -1,11 +1,14 @@
 using System;
 
-namespace Coral.Managed;
-
-public static class ExtensionMethods
+namespace Coral.Managed
 {
-	public static bool IsDelegate(this Type InType)
+
+	public static class ExtensionMethods
 	{
-		return typeof(MulticastDelegate).IsAssignableFrom(InType.BaseType);
+		public static bool IsDelegate(this Type InType)
+		{
+			return typeof(MulticastDelegate).IsAssignableFrom(InType.BaseType);
+		}
 	}
+
 }

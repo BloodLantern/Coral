@@ -3,37 +3,39 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Coral.Managed;
-
-internal static class GarbageCollector
+namespace Coral.Managed
 {
 
-	[UnmanagedCallersOnly]
-	internal static void CollectGarbage(int InGeneration, GCCollectionMode InCollectionMode, Bool32 InBlocking, Bool32 InCompacting)
+	internal static class GarbageCollector
 	{
-		try
-		{
-			if (InGeneration < 0)
-				GC.Collect();
-			else
-				GC.Collect(InGeneration, InCollectionMode, InBlocking, InCompacting);
-		}
-		catch (Exception ex)
-		{
-			ManagedHost.HandleException(ex);
-		}
-	}
 
-	[UnmanagedCallersOnly]
-	internal static void WaitForPendingFinalizers()
-	{
-		try
+		[UnmanagedCallersOnly]
+		internal static void CollectGarbage(int InGeneration, GCCollectionMode InCollectionMode, Bool32 InBlocking, Bool32 InCompacting)
 		{
-			GC.WaitForPendingFinalizers();
+			try
+			{
+				if (InGeneration < 0)
+					GC.Collect();
+				else
+					GC.Collect(InGeneration, InCollectionMode, InBlocking, InCompacting);
+			}
+			catch (Exception ex)
+			{
+				ManagedHost.HandleException(ex);
+			}
 		}
-		catch (Exception ex)
+
+		[UnmanagedCallersOnly]
+		internal static void WaitForPendingFinalizers()
 		{
-			ManagedHost.HandleException(ex);
+			try
+			{
+				GC.WaitForPendingFinalizers();
+			}
+			catch (Exception ex)
+			{
+				ManagedHost.HandleException(ex);
+			}
 		}
 	}
 

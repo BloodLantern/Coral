@@ -2,36 +2,39 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Coral.Managed;
-
-public class UniqueIdList<T>
+namespace Coral.Managed
 {
-	private readonly Dictionary<int, T> m_Objects = new();
 
-	public bool Contains(int id)
+	public class UniqueIdList<T>
 	{
-		return m_Objects.ContainsKey(id);
-	}
+		private readonly Dictionary<int, T> m_Objects = new();
 
-	public int Add(T? obj)
-	{
-		if (obj == null)
+		public bool Contains(int id)
 		{
-			throw new ArgumentNullException(nameof(obj));
+			return m_Objects.ContainsKey(id);
 		}
 
-		int hashCode = RuntimeHelpers.GetHashCode(obj);
-		_ = m_Objects.TryAdd(hashCode, obj);
-		return hashCode;
+		public int Add(T? obj)
+		{
+			if (obj == null)
+			{
+				throw new ArgumentNullException(nameof(obj));
+			}
+
+			int hashCode = RuntimeHelpers.GetHashCode(obj);
+			_ = m_Objects.TryAdd(hashCode, obj);
+			return hashCode;
+		}
+
+		public bool TryGetValue(int id, out T? obj)
+		{
+			return m_Objects.TryGetValue(id, out obj);
+		}
+
+		public void Clear()
+		{
+			m_Objects.Clear();
+		}
 	}
 
-	public bool TryGetValue(int id, out T? obj)
-	{
-		return m_Objects.TryGetValue(id, out obj);
-	}
-
-	public void Clear()
-	{
-		m_Objects.Clear();
-	}
 }

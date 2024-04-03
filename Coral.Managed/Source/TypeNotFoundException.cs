@@ -1,20 +1,23 @@
 ﻿using System;
 
-namespace Coral.Managed;
-
-public class TypeNotFoundException : Exception
+namespace Coral.Managed
 {
-	public TypeNotFoundException()
+
+	public class TypeNotFoundException : Exception
 	{
+		public TypeNotFoundException()
+		{
+		}
+
+		public TypeNotFoundException(string message)
+			: base(message)
+		{
+		}
+
+		public TypeNotFoundException(string message, Exception inner)
+			: base(message, inner)
+		{
+		}
 	}
 
-	public TypeNotFoundException(string message)
-		: base(message)
-	{
-	}
-
-	public TypeNotFoundException(string message, Exception inner)
-		: base(message, inner)
-	{
-	}
 }
