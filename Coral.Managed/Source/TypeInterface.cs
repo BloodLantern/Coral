@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -898,6 +899,102 @@ namespace Coral.Managed
 			catch (Exception ex)
 			{
 				HandleException(ex);
+			}
+		}
+
+		[UnmanagedCallersOnly]
+		private static unsafe Bool32 IsClass(int InType)
+		{
+			try
+			{
+				if (s_CachedTypes.TryGetValue(InType, out var type))
+					return type.IsClass;
+			}
+			catch (Exception e)
+			{
+				HandleException(e);
+			}
+
+			return false;
+		}
+
+		[UnmanagedCallersOnly]
+		private static unsafe Bool32 IsEnum(int InType)
+		{
+			try
+			{
+				if (s_CachedTypes.TryGetValue(InType, out var type))
+					return type.IsEnum;
+			}
+			catch (Exception e)
+			{
+				HandleException(e);
+			}
+
+			return false;
+		}
+
+		[UnmanagedCallersOnly]
+		private static unsafe Bool32 IsValueType(int InType)
+		{
+			try
+			{
+				if (s_CachedTypes.TryGetValue(InType, out var type))
+					return type.IsValueType;
+			}
+			catch (Exception e)
+			{
+				HandleException(e);
+			}
+
+			return false;
+		}
+	
+		[UnmanagedCallersOnly]
+		private static unsafe void GetEnumNames(int InType, NativeString* OutNames, int* OutCount)
+		{
+			try
+			{
+				if (!s_CachedTypes.TryGetValue(InType, out var type))
+					return;
+
+				string[] names = Enum.GetNames(type);
+
+				*OutCount = names.Length;
+
+				if (OutNames == null)
+					return;
+
+				for (int i = 0; i < *OutCount; i++)
+					OutNames[i] = names[i];
+			}
+			catch (Exception e)
+			{
+				HandleException(e);
+			}
+		}
+        
+		[UnmanagedCallersOnly]
+		private static unsafe void GetEnumValues(int InType, int* OutValues, int* OutCount)
+		{
+			try
+			{
+				if (!s_CachedTypes.TryGetValue(InType, out var type))
+					return;
+
+				Array values = Enum.GetValues(type);
+
+				*OutCount = values.Length;
+
+				if (OutValues == null)
+					return;
+
+				for (int i = 0; i < *OutCount; i++)
+					OutValues[i] = (int) values.GetValue(i);
+			}
+			catch (Exception e)
+			{
+				HandleException(e);
 			}
 		}
 	}

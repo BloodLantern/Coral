@@ -152,6 +152,37 @@ namespace Coral {
 		return s_ManagedFunctions.GetTypeManagedTypeFptr(m_Id);
 	}
 
+	bool Type::IsClass() const
+	{
+		return s_ManagedFunctions.IsClassFptr(m_Id);
+	}
+
+	bool Type::IsEnum() const
+	{
+		return s_ManagedFunctions.IsEnumFptr(m_Id);
+	}
+
+	bool Type::IsValueType() const
+	{
+		return s_ManagedFunctions.IsValueTypeFptr(m_Id);
+	}
+
+	void Type::GetEnumNames(std::vector<String>& OutNames) const
+	{
+		int size;
+		s_ManagedFunctions.GetEnumNamesFptr(m_Id, nullptr, &size);
+		OutNames.resize(size);
+		s_ManagedFunctions.GetEnumNamesFptr(m_Id, OutNames.data(), &size);
+	}
+
+	void Type::GetEnumValues(std::vector<int>& OutValues) const
+	{
+		int size;
+		s_ManagedFunctions.GetEnumValuesFptr(m_Id, nullptr, &size);
+		OutValues.resize(size);
+		s_ManagedFunctions.GetEnumValuesFptr(m_Id, OutValues.data(), &size);
+	}
+
 	bool Type::IsSZArray() const
 	{
 		return s_ManagedFunctions.IsTypeSZArrayFptr(m_Id);

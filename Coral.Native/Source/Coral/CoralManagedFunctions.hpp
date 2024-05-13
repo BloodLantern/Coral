@@ -84,6 +84,12 @@ namespace Coral {
 
 	using CollectGarbageFn = void(*)(int32_t, GCCollectionMode, Bool32, Bool32);
 	using WaitForPendingFinalizersFn = void(*)();
+	
+	using IsClassFn = bool(*)(TypeId);
+	using IsEnumFn = bool(*)(TypeId);
+	using IsValueTypeFn = bool(*)(TypeId);
+	using GetEnumNamesFn = void(*)(TypeId, String*, int32_t*);
+	using GetEnumValuesFn = void(*)(TypeId, int32_t*, int32_t*);
 
 	struct ManagedFunctions
 	{
@@ -159,6 +165,12 @@ namespace Coral {
 
 		CollectGarbageFn CollectGarbageFptr = nullptr;
 		WaitForPendingFinalizersFn WaitForPendingFinalizersFptr = nullptr;
+
+		IsClassFn IsClassFptr = nullptr;
+		IsEnumFn IsEnumFptr = nullptr;
+		IsValueTypeFn IsValueTypeFptr = nullptr;
+		GetEnumNamesFn GetEnumNamesFptr = nullptr;
+		GetEnumValuesFn GetEnumValuesFptr = nullptr;
 	};
 
 	inline ManagedFunctions s_ManagedFunctions;

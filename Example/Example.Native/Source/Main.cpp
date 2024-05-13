@@ -79,6 +79,8 @@ int main(int argc, char** argv)
 
 	// Call the static method "StaticMethod" with value 50
 	exampleType.InvokeStaticMethod("StaticMethod", 50.0f);
+	
+	std::cout << "Example type IsClass=" << std::boolalpha << exampleType.IsClass() << std::endl;
 
 	// Get a reference to the CustomAttribute type
 	auto& customAttributeType = assembly.GetType("Example.Managed.CustomAttribute");
@@ -145,6 +147,26 @@ int main(int argc, char** argv)
 	auto arr = Coral::Array<float>::New({ 5.0f, 0.0f, 10.0f, -50.0f });
 	exampleInstance.InvokeMethod("ArrayDemo", arr);
 	Coral::Array<float>::Free(arr);
+
+	auto type = assembly.GetType("Example.Managed.ExampleEnum");
+
+	std::cout << "Example enum IsClass=" << std::boolalpha << type.IsClass() << std::endl;
+	std::cout << "Example enum IsEnum=" << std::boolalpha << type.IsEnum() << std::endl;
+	std::cout << "Example enum IsValueType=" << std::boolalpha << type.IsValueType() << std::endl;
+
+	std::vector<Coral::String> names;
+	type.GetEnumNames(names);
+
+	std::cout << "Example enum names:" << std::endl;
+	for (auto name : names)
+		std::cout << "\tExample enum name: " << static_cast<std::string>(name) << std::endl;
+
+	std::vector<int> values;
+	type.GetEnumValues(values);
+
+	std::cout << "Example enum values:" << std::endl;
+	for (auto value : values)
+		std::cout << "\tExample enum value: " << value << std::endl;
 
 	return 0;
 }

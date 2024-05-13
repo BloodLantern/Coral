@@ -312,6 +312,12 @@ namespace Coral {
 		s_ManagedFunctions.DestroyObjectFptr = LoadCoralManagedFunctionPtr<DestroyObjectFn>(CORAL_STR("Coral.Managed.ManagedObject, Coral.Managed"), CORAL_STR("DestroyObject"));
 		s_ManagedFunctions.CollectGarbageFptr = LoadCoralManagedFunctionPtr<CollectGarbageFn>(CORAL_STR("Coral.Managed.GarbageCollector, Coral.Managed"), CORAL_STR("CollectGarbage"));
 		s_ManagedFunctions.WaitForPendingFinalizersFptr = LoadCoralManagedFunctionPtr<WaitForPendingFinalizersFn>(CORAL_STR("Coral.Managed.GarbageCollector, Coral.Managed"), CORAL_STR("WaitForPendingFinalizers"));
+		
+		s_ManagedFunctions.IsClassFptr = LoadCoralManagedFunctionPtr<IsClassFn>(CORAL_STR("Coral.Managed.TypeInterface, Coral.Managed"), CORAL_STR("IsClass"));
+		s_ManagedFunctions.IsEnumFptr = LoadCoralManagedFunctionPtr<IsEnumFn>(CORAL_STR("Coral.Managed.TypeInterface, Coral.Managed"), CORAL_STR("IsEnum"));
+		s_ManagedFunctions.IsValueTypeFptr = LoadCoralManagedFunctionPtr<IsValueTypeFn>(CORAL_STR("Coral.Managed.TypeInterface, Coral.Managed"), CORAL_STR("IsValueType"));
+		s_ManagedFunctions.GetEnumNamesFptr = LoadCoralManagedFunctionPtr<GetEnumNamesFn>(CORAL_STR("Coral.Managed.TypeInterface, Coral.Managed"), CORAL_STR("GetEnumNames"));
+		s_ManagedFunctions.GetEnumValuesFptr = LoadCoralManagedFunctionPtr<GetEnumValuesFn>(CORAL_STR("Coral.Managed.TypeInterface, Coral.Managed"), CORAL_STR("GetEnumValues"));
 	}
 
 	void* HostInstance::LoadCoralManagedFunctionPtr(const std::filesystem::path& InAssemblyPath, const CharType* InTypeName, const CharType* InMethodName, const CharType* InDelegateType) const

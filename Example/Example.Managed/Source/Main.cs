@@ -22,6 +22,13 @@ namespace Example.Managed {
 		public void Print() => Console.WriteLine($"ExampleStruct value: {myPrivateValue}");
 	}
 
+	public enum ExampleEnum
+	{
+		First = 1,
+		Second = 7,
+		Third = 18
+	}
+
 	[Custom(Value = -2500.0f)]
 	public class ExampleClass
 	{
